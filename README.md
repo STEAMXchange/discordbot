@@ -68,7 +68,7 @@ python qc.py
 - `/getprojectid` - Get the project ID linked to this thread
 - `/whereisproject <project_id>` - Find the thread/location of a project ID
 - `/getprojectinfo <project_id>` - Get detailed info about a project ID
-- `/getUrl` - Get the Canva URL for this thread's project
+- `/geturl` - Get the Canva URL for this thread's project
 
 **Quality Control:**
 - `/status` - Check which project a thread is linked to
@@ -98,19 +98,62 @@ When posting in the designated forum channel, include:
 5. **Reporting**: Generates detailed QC report
 6. **Integration**: Updates Google Sheets with results
 
+## Architecture
+
+### Modular Design
+
+The bot uses a modular architecture for better maintainability and extensibility:
+
+- **`qc.py`**: Main bot file containing core functionality (events, initialization)
+- **`utils.py`**: Shared utilities including the `BotUtils` class for common operations
+- **`qc_helpers.py`**: Quality control specific functions (font analysis, text extraction)
+- **`commands/`**: Individual command modules, each with their own file
+
+### Adding New Commands
+
+To add a new command:
+
+1. Create a new file in the `commands/` directory
+2. Implement a `setup(bot, utils)` function
+3. Add the command using the bot and utils objects
+4. Import and register in the main `qc.py` file
+
+Example:
+```python
+# commands/newcommand.py
+def setup(bot, utils):
+    @bot.slash_command(name="newcommand", description="Description")
+    async def newcommand(interaction):
+        # Command logic here
+        pass
+```
+
 ## File Structure
 
 ```
 steamxquality/
-├── qc.py                 # Main Discord bot application
-├── sheets.py            # Google Sheets integration
-├── requirements.txt     # Python dependencies
-├── setup.py             # Setup and configuration script
-├── .env                 # Environment variables (create from env.example)
-├── env.example          # Example environment configuration
-├── .gitignore           # Git ignore rules
-├── steamxqualityauto.sh # Linux startup script
-└── README.md            # This file
+├── qc.py                    # Main Discord bot application (streamlined)
+├── utils.py                 # Shared utilities and BotUtils class
+├── qc_helpers.py           # QC-specific helper functions
+├── sheets.py               # Google Sheets integration
+├── commands/               # Modular command structure
+│   ├── __init__.py         # Commands package initializer
+│   ├── register.py         # /register command
+│   ├── unregister.py       # /unregister command
+│   ├── status.py           # /status command
+│   ├── getprojectid.py     # /getprojectid command
+│   ├── whereisproject.py   # /whereisproject command
+│   ├── geturl.py           # /geturl command
+│   ├── getprojectinfo.py   # /getprojectinfo command
+│   ├── mark.py             # /mark command
+│   ├── qc.py               # /qc command
+│   └── palette.py          # /palette command
+├── requirements.txt        # Python dependencies
+├── .env                    # Environment variables (create from env.example)
+├── env.example             # Example environment configuration
+├── .gitignore              # Git ignore rules
+├── thread_db.json          # Thread database (auto-generated)
+└── README.md               # This file
 ```
 ## Troubleshooting
 
