@@ -4,7 +4,7 @@ import asyncio
 from datetime import datetime, timedelta
 import nextcord
 from nextcord.ext import commands
-from nextcord import Interaction, Thread, SlashOption
+from nextcord import Interaction, Thread, SlashOption, Embed
 from PIL import Image, ImageDraw, ImageFont
 import cv2
 import numpy as np
@@ -20,6 +20,7 @@ import json
 import os
 import platform
 from dotenv import load_dotenv
+from sheets import getCanvaURL
 
 # Load environment variables from .env file
 load_dotenv()
@@ -585,7 +586,7 @@ async def status(interaction: Interaction):
     else:
         await interaction.response.send_message("❌ This thread is not registered to any project.")
 
-@bot.slash_command(name="getUrl", description="Get the Canva URL for this thread's project.")
+@bot.slash_command(name="geturl", description="Get the Canva URL for this thread's project.")
 async def canva(interaction: Interaction):
    thread = interaction.channel
 
@@ -610,70 +611,7 @@ async def canva(interaction: Interaction):
    else:
        await interaction.response.send_message(f"❌ No Canva URL found for Project `#{project_id}`")
 
-@bot.slash_command(name="register", description="Link this thread to a Project ID.")
-async def register(interaction: Interaction, project_id: str = SlashOption(description="Project ID like #000003")):
-    thread = interaction.channel
 
-    if not isinstance(thread, Thread):
-        await interaction.response.send_message(
-            "❌ This command can only be used inside a thread.", ephemeral=True
-        )
-        return
-
-    # Permissions: must have QC role or manage messages
-    has_qc_role = next((r.id == QC_ROLE_ID for r in interaction.user.roles), False)
-    has_manage_perm = interaction.user.guild_permissions.manage_messages
-
-    if not has_qc_role and not has_manage_perm:
-        await interaction.response.send_message(
-            "🚫 You don't have permission to use this command.", ephemeral=True
-        )
-        return
-
-    # Strip leading # and pad zeros if needed
-    project_id = project_id.lstrip("#").zfill(6)
-
-    # Validate project ID
-    if not sheets.projectExists(project_id):
-        await interaction.response.send_message(
-            f"❌ Project ID `#{project_id}` does not exist.", ephemeral=True
-        )
-        return
-
-    # Save to JSON DB
-    thread_id = str(thread.id)
-    db = load_db()
-    db[thread_id] = {
-        "project_id": project_id,
-        "registered_by": interaction.user.name,
-        "timestamp": datetime.now().isoformat()
-    }
-    save_db(db)
-
-    await interaction.response.send_message(
-        f"✅ Registered this thread to project `#{project_id}`."
-    )
-
-@bot.slash_command(name="status", description="Check which Project ID this thread is linked to.")
-async def status(interaction: Interaction):
-    thread = interaction.channel
-
-    if not isinstance(thread, Thread):
-        await interaction.response.send_message("❌ This command can only be used inside a thread.", ephemeral=True)
-        return
-
-    db = load_db()
-    thread_id = str(thread.id)
-
-    if thread_id in db:
-        entry = db[thread_id]
-        await interaction.response.send_message(
-            f"✅ This thread is linked to Project `#{entry['project_id']}`\n"
-            f"🔗 Registered by: `{entry['registered_by']}`\n"
-            f"🕓 Registered at: `{entry['timestamp']}`"
-        )
-    else:
-        await interaction.response.send_message("❌ This thread is not registered to any project.")
 
 @bot.slash_command(name="unregister", description="Unlink this thread from any Project ID.")
 async def unregister(interaction: Interaction):

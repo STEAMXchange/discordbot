@@ -62,12 +62,23 @@ python qc.py
 
 ### Discord Commands
 
+**Project Management:**
 - `/register <project_id>` - Link a thread to a project ID
-- `/status` - Check which project a thread is linked to
 - `/unregister` - Unlink a thread from its project
+- `/getprojectid` - Get the project ID linked to this thread
+- `/whereisproject <project_id>` - Find the thread/location of a project ID
+- `/getprojectinfo <project_id>` - Get detailed info about a project ID
+- `/getUrl` - Get the Canva URL for this thread's project
+
+**Quality Control:**
+- `/status` - Check which project a thread is linked to
 - `/mark <result> [reason]` - Mark QC result (PASS/FAIL)
 - `/qc <url>` - Manually run QC on a Canva URL
 - `/palette <image>` - Extract color palette from an image
+
+**Permissions Required:**
+- Most commands require QC role or manage messages permission
+- `/register`, `/mark`, `/unregister` require special permissions
 
 ### Forum Post Requirements
 
@@ -94,9 +105,11 @@ steamxquality/
 ├── qc.py                 # Main Discord bot application
 ├── sheets.py            # Google Sheets integration
 ├── requirements.txt     # Python dependencies
+├── setup.py             # Setup and configuration script
 ├── .env                 # Environment variables (create from env.example)
-├── .env.example          # Example environment configuration
+├── env.example          # Example environment configuration
 ├── .gitignore           # Git ignore rules
+├── steamxqualityauto.sh # Linux startup script
 └── README.md            # This file
 ```
 ## Troubleshooting
