@@ -413,6 +413,203 @@ async def on_thread_delete(thread: Thread):
         save_db(db)
         print(f"🗑️ Auto-unregistered thread {thread_id}")
 
+@bot.slash_command(name="getprojectinfo", description="Gets info about a projectID")
+async def getProjectInfo(
+    interaction: Interaction,
+    project_id: str = SlashOption(description="Project ID like #000003")
+):
+    if project_id[0] == "#":
+        project_id = project_id[1:]
+
+    if not sheets.projectExists(project_id):
+        await interaction.response.send_message(content=f"Project id: {project_id} not found!", ephemeral=True)
+        return
+
+    clean_id = project_id.strip().lstrip("#").zfill(6)
+    row = sheets.getProjectRow(clean_id)
+
+    if not row:
+        await interaction.response.send_message(
+            f"❌ Project ID `{project_id}` not found.",
+            ephemeral=True
+        )
+        return
+
+    embed = Embed(
+        title=f"📄 Project Info: #{clean_id}",
+        description=row.get(sheets.ProjectCols.DESCRIPTION, "No description."),
+        color=0xB700FF
+    )
+
+    qc_result = row.get(sheets.ProjectCols.QC_PASSED, "N/A")
+    qc_emoji = "✅" if qc_result.strip().upper() == "YES" else ("❌" if qc_result.strip().upper() == "NO" else "❓")
+
+    embed.add_field(name="📌 Name", value=row.get(sheets.ProjectCols.NAME, "N/A"), inline=False)
+    embed.add_field(name="👤 Author", value=row.get(sheets.ProjectCols.AUTHOR, "N/A"), inline=False)
+    embed.add_field(name="🎨 Designer", value=row.get(sheets.ProjectCols.DESIGNER, "N/A"), inline=False)
+    embed.add_field(name="✅ Done?", value=row.get(sheets.ProjectCols.DONE, "N/A"), inline=False)
+    embed.add_field(name="🔍 QC Passed?", value=f"{qc_emoji} {qc_result}", inline=False)
+    embed.add_field(name="🕒 Start Date", value=row.get(sheets.ProjectCols.START_DATE, "N/A"), inline=False)
+    embed.add_field(name="📅 Due Date", value=row.get(sheets.ProjectCols.END_DATE, "N/A"), inline=False)
+    embed.add_field(name="📝 Topic", value=row.get(sheets.ProjectCols.TOPIC, "N/A"), inline=False)
+    embed.set_footer(text="Areng Management Project System")
+
+    await interaction.response.send_message(embed=embed)
+
+
+@bot.slash_command(name="register", description="Link this thread to a Project ID.")
+async def register(interaction: Interaction, project_id: str = SlashOption(description="Project ID like #000003")):
+    thread = interaction.channel
+
+    if not isinstance(thread, Thread):
+        await interaction.response.send_message(
+            "❌ This command can only be used inside a thread.", ephemeral=True
+        )
+        return
+
+    # Permissions: must have QC role or manage messages
+    has_qc_role = next((r.id == QC_ROLE_ID for r in interaction.user.roles), False)
+    has_manage_perm = interaction.user.guild_permissions.manage_messages
+
+    if not has_qc_role and not has_manage_perm:
+        await interaction.response.send_message(
+            "🚫 You don't have permission to use this command.", ephemeral=True
+        )
+        return
+
+    # Strip leading # and pad zeros if needed
+    project_id = project_id.lstrip("#").zfill(6)
+
+    # Validate project ID
+    if not sheets.projectExists(project_id):
+        await interaction.response.send_message(
+            f"❌ Project ID `#{project_id}` does not exist.", ephemeral=True
+        )
+        return
+
+    # Save to JSON DB
+    thread_id = str(thread.id)
+    db = load_db()
+    db[thread_id] = {
+        "project_id": project_id,
+        "registered_by": interaction.user.name,
+        "timestamp": datetime.now().isoformat()
+    }
+    save_db(db)
+
+    await interaction.response.send_message(
+        f"✅ Registered this thread to project `#{project_id}`."
+    )
+
+@bot.slash_command(name="getprojectid", description="Get the project ID linked to this thread")
+async def getprojectid(interaction: Interaction):
+    thread = interaction.channel
+    
+    if not isinstance(thread, Thread):
+        await interaction.response.send_message("❌ This command can only be used inside a thread.", ephemeral=True)
+        return
+    
+    db = load_db()
+    thread_id = str(thread.id)
+    
+    if thread_id in db:
+        project_id = db[thread_id]["project_id"]
+        await interaction.response.send_message(f"📋 Project ID: `#{project_id}`", ephemeral=True)
+    else:
+        await interaction.response.send_message("❌ This thread is not registered to any project.", ephemeral=True)
+
+@bot.slash_command(name="whereisproject", description="Find the thread/location of a project ID")
+async def whereisproject(
+    interaction: Interaction,
+    project_id: str = SlashOption(description="Project ID like #000003")
+):
+    # Clean up the project ID
+    clean_project_id = project_id.lstrip("#").zfill(6)
+    
+    # Check if project exists first
+    if not sheets.projectExists(clean_project_id):
+        await interaction.response.send_message(f"❌ Project `#{clean_project_id}` does not exist.", ephemeral=True)
+        return
+    
+    # Search through the database
+    db = load_db()
+    found_thread_id = None
+    
+    for thread_id, info in db.items():
+        if info["project_id"] == clean_project_id:
+            found_thread_id = thread_id
+            break
+    
+    if found_thread_id:
+        try:
+            thread = bot.get_channel(int(found_thread_id))
+            if thread:
+                await interaction.response.send_message(
+                    f"📍 Project `#{clean_project_id}` is in thread: {thread.jump_url}",
+                    ephemeral=True
+                )
+            else:
+                await interaction.response.send_message(
+                    f"❓ Project `#{clean_project_id}` thread exists but couldn't be accessed.",
+                    ephemeral=True
+                )
+        except:
+            await interaction.response.send_message(
+                f"❓ Project `#{clean_project_id}` thread exists but couldn't be accessed.",
+                ephemeral=True
+            )
+    else:
+        await interaction.response.send_message(
+            f"❓ Project `#{clean_project_id}` exists but is not linked to any active thread.",
+            ephemeral=True
+        )
+
+@bot.slash_command(name="status", description="Check which Project ID this thread is linked to.")
+async def status(interaction: Interaction):
+    thread = interaction.channel
+
+    if not isinstance(thread, Thread):
+        await interaction.response.send_message("❌ This command can only be used inside a thread.", ephemeral=True)
+        return
+
+    db = load_db()
+    thread_id = str(thread.id)
+
+    if thread_id in db:
+        entry = db[thread_id]
+        await interaction.response.send_message(
+            f"✅ This thread is linked to Project `#{entry['project_id']}`\n"
+            f"🔗 Registered by: `{entry['registered_by']}`\n"
+            f"🕓 Registered at: `{entry['timestamp']}`"
+        )
+    else:
+        await interaction.response.send_message("❌ This thread is not registered to any project.")
+
+@bot.slash_command(name="getUrl", description="Get the Canva URL for this thread's project.")
+async def canva(interaction: Interaction):
+   thread = interaction.channel
+
+   if not isinstance(thread, Thread):
+       await interaction.response.send_message("❌ This command can only be used inside a thread.", ephemeral=True)
+       return
+
+   db = load_db()
+   thread_id = str(thread.id)
+
+   if thread_id not in db:
+       await interaction.response.send_message("❌ This thread is not registered to any project.", ephemeral=True)
+       return
+
+   project_id = db[thread_id]['project_id']
+   canva_url = getCanvaURL(project_id)
+
+   if canva_url and canva_url != "IMAGE SENT IN QC CHAT":
+       await interaction.response.send_message(f"🎨 Canva URL for Project `#{project_id}`: {canva_url}")
+   elif canva_url == "IMAGE SENT IN QC CHAT":
+       await interaction.response.send_message(f"📸 Project `#{project_id}`: Design was sent directly in QC chat (no Canva link)")
+   else:
+       await interaction.response.send_message(f"❌ No Canva URL found for Project `#{project_id}`")
+
 @bot.slash_command(name="register", description="Link this thread to a Project ID.")
 async def register(interaction: Interaction, project_id: str = SlashOption(description="Project ID like #000003")):
     thread = interaction.channel
