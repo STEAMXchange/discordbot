@@ -24,8 +24,8 @@ def setup(bot, utils):
         # Bot version info
         embed.add_field(
             name="📋 Bot Info",
-            value=f"**Version:** 2.0.0\n"
-                  f"**Author:** STEAMXchange Team\n"
+            value=f"**Version:** 2.0.1\n"
+                  f"**Author:** Areng\n"
                   f"**Framework:** nextcord {nextcord.__version__}",
             inline=False
         )
@@ -50,18 +50,7 @@ def setup(bot, utils):
                   f"**Uptime:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
             inline=False
         )
-        
-        # Features
-        embed.add_field(
-            name="⚡ Features",
-            value="• Automated Quality Control\n"
-                  "• Google Sheets Integration\n"
-                  "• Canva URL Processing\n"
-                  "• Thread Management\n"
-                  "• Project Tracking",
-            inline=False
-        )
-        
+
         embed.set_footer(text="Made with ❤️ for STEAMXchange")
         embed.timestamp = datetime.utcnow()
         
