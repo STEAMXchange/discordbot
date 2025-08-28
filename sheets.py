@@ -51,6 +51,7 @@ class ProjectCols:
     POSTER = "POSTER NAME"
 
 def getProjectValue(project_id, col):
+    refresh_projects()
     row = getProjectRow(project_id)
     if not row:
         return None
@@ -58,10 +59,12 @@ def getProjectValue(project_id, col):
 
 def getProjectRow(project_id):
     """Returns just the row dict for a project."""
+    refresh_projects()
     return _getProjectRow(project_id)
 
 def getProjectRowWithIndex(project_id):
     """Returns (row_dict, row_index) where row_index is 1-based for Google Sheets."""
+    refresh_projects()
     project_id = str(project_id).zfill(6)
     for i, row in enumerate(projects, start=3):  # head=2 so data starts at row 3
         if str(row["PROJECT ID"]).lstrip("#").zfill(6) == project_id:
@@ -70,10 +73,12 @@ def getProjectRowWithIndex(project_id):
 
 
 def getDesignerFromProjectID(project_id):
+    refresh_projects()
     row = _getProjectRow(project_id)
     return row["ASSIGNED DESIGNER"].strip() if row else None
 
 def isProjectDone(project_id):
+    refresh_projects()
     row = _getProjectRow(project_id)
     if not row:
         return False
@@ -81,10 +86,12 @@ def isProjectDone(project_id):
     return status == "DONE"
 
 def getWriterFromProjectID(project_id):
+    refresh_projects()
     row = _getProjectRow(project_id)
     return row["ASSIGNED AUTHOR"].strip() if row else None
 
 def getDepartmentFromDiscord(discord_username):
+    refresh_management()
     for row in management_data[2:]:
         for dept, (name_col, username_col) in {
             "Writers": (0, 1),
@@ -101,6 +108,7 @@ def getDepartmentFromDiscord(discord_username):
 
 
 def getDepartmentFromName(real_name):
+    refresh_management()
     for row in management_data[2:]:
         for dept, (name_col, _) in {
             "Writers": (0, 1),
@@ -119,6 +127,7 @@ def getDepartmentFromName(real_name):
 def getDiscordUsername(real_name):
     if not real_name:
         return None
+    refresh_management()
     for row in management_data[2:]:
         for name_col, username_col in [(0, 1), (4, 5), (8, 9), (12, 14)]:
             try:
@@ -131,9 +140,11 @@ def getDiscordUsername(real_name):
     return None
 
 def projectExists(project_id):
+    refresh_projects()
     return _getProjectRow(project_id) is not None
 
 def markDesignerDone(project_id, design_link=None, qc_post_link=None):
+    refresh_projects()
     for i, row in enumerate(projects, start=3):  # adjust for headers
         if str(row["PROJECT ID"]).lstrip("#") == project_id:
             if design_link:
@@ -148,6 +159,7 @@ def markDesignerDone(project_id, design_link=None, qc_post_link=None):
     return False
 
 def getCanvaURL(project_id):
+    refresh_projects()
     for i, row in enumerate(projects, start=3):  # adjust for headers
         if str(row["PROJECT ID"]).lstrip("#") == project_id:
             # Assuming Canva URL is in column O (same as design_link in your markDesignerDone function)
@@ -156,6 +168,7 @@ def getCanvaURL(project_id):
     return None
 
 def getRealName(discord_username):
+    refresh_management()
     for row in management_data[2:]:
         for name_col, username_col in [(0, 1), (4, 5), (8, 9), (12, 14)]:
             try:
@@ -171,12 +184,16 @@ def refresh_projects():
     global projects
     projects = project_sheet.get_all_records(head=2)
 
+def refresh_management():
+    global management_data
+    management_data = management_sheet.get_all_values()
+
 def _getProjectRow(project_id):
     project_id = str(project_id).lstrip("#").zfill(6)
     return next((row for row in projects if str(row["PROJECT ID"]).lstrip("#").zfill(6) == project_id), None)
 
 def markQCResult(project_id, status, reason=None):
-    projects = project_sheet.get_all_records(head=2)  # refresh
+    refresh_projects()  # refresh
     project_id = str(project_id).lstrip("#").zfill(6)  # normalize input
     
     for i, row in enumerate(projects, start=3):  # data starts at row 3

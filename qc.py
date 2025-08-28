@@ -35,6 +35,7 @@ load_dotenv()
 DISCORD_BOT_TOKEN = os.getenv("DISCORD_BOT_TOKEN")
 FORUM_CHANNEL_ID = int(os.getenv("FORUM_CHANNEL_ID", 1333405556714504242))
 QC_ROLE_ID = int(os.getenv("QC_ROLE_ID", 1333429556429721674))
+OWNER_USER_ID = int(os.getenv("OWNER_USER_ID", 0))
 PASS_TAG_ID = int(os.getenv("PASS_TAG_ID", 1333406922098868326))
 FAIL_TAG_ID = int(os.getenv("FAIL_TAG_ID", 1333406950955810899))
 STALLED_TAG_ID = int(os.getenv("STALLED_TAG_ID", 1355469672278917264))
@@ -59,7 +60,7 @@ def setup_commands():
     """Import and setup all command modules."""
     from commands import (
         register, unregister, status, getprojectid, 
-        whereisproject, geturl, getprojectinfo, mark, qc, palette
+        whereisproject, geturl, getprojectinfo, mark, qc, palette, about, kill
     )
     
     # Register all commands
@@ -73,6 +74,8 @@ def setup_commands():
     mark.setup(bot, utils)
     qc.setup(bot, utils)
     palette.setup(bot, utils)
+    about.setup(bot, utils)
+    kill.setup(bot, utils, OWNER_USER_ID)
 
 
 async def auto_fail_expired_threads():
