@@ -59,6 +59,20 @@ PROJECT_COLUMNS = {
     'DESIGN_QC_RESULT':      'Z',
 }
 
+def formatPID(pid: str | int) -> str:
+    # normalize to int first
+    if isinstance(pid, str):
+        # strip any leading '#' and whitespace
+        pid = pid.strip().lstrip("#")
+    try:
+        num = int(pid)
+    except ValueError:
+        raise ValueError(f"Invalid project ID: {pid}")
+
+    if num < 0 or num > 999999:
+        raise ValueError("Project ID must be between 0 and 999999")
+
+    return f"#{num:06d}"
 
 def getProjectRow(projectID: str) -> int:
     try:
@@ -76,3 +90,6 @@ def getProjectRow(projectID: str) -> int:
     except Exception as e:
         print(f"Error finding project row: {e}")
         return -1
+    
+if __name__ == "__main__":
+    print(getProjectRow("000001"))
