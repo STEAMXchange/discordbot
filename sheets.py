@@ -60,6 +60,9 @@ PROJECT_COLUMNS = {
 }
 
 def formatPID(pid: str | int) -> str:
+    """
+    Formats your PID so it can work with other functions.
+    """
     # normalize to int first
     if isinstance(pid, str):
         # strip any leading '#' and whitespace
@@ -74,22 +77,24 @@ def formatPID(pid: str | int) -> str:
 
     return f"#{num:06d}"
 
-def getProjectRow(projectID: str) -> int:
-    try:
-        # Get all values in the PROJECT_ID column
-        project_ids = frontend_project.col_values(gspread.utils.a1_to_rowcol(PROJECT_COLUMNS['PROJECT_ID'] + '1')[1])
-        
-        # Find the row with matching project ID
-        for i, cell_value in enumerate(project_ids):
-            if cell_value == projectID:
-                return i + 1  # +1 because gspread uses 1-based indexing
-        
-        # Return -1 if project ID not found
-        return -1
-        
-    except Exception as e:
-        print(f"Error finding project row: {e}")
-        return -1
+def getProjectRow(project_id: str) -> int:
+    """
+    Return 1-based row of the given PID in column A, or -1 if not found.
+    Always coerces values to string before strip/lstrip.
+    """
+    # normalize input
+    pid = str(project_id).strip().lstrip("'")
+    if not pid.startswith("#") and pid.isdigit():
+        pid = formatPID(pid)  # from earlier
+
+    col_vals = frontend_project.col_values(1)  # column A
+
+    for row_num, val in enumerate(col_vals[2:], start=3):  # skip 2 header rows
+        cell_pid = str(val).strip().lstrip("'")
+        if cell_pid == pid:
+            return row_num
+
+    return -1
     
 if __name__ == "__main__":
-    print(getProjectRow("000001"))
+    print(getProjectRow("1"))
