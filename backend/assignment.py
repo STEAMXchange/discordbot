@@ -316,3 +316,94 @@ def assignAll(pid: str, frontend_project: gspread.Worksheet, designer_sheet: gsp
     print(f"   🔍 Design QC: {results['design_controller']}")
     
     return results
+
+
+def autoAssignUnconnectedProjects(frontend_project: gspread.Worksheet, designer_sheet: gspread.Worksheet,
+                                 writer_sheet: gspread.Worksheet, controller_sheet: gspread.Worksheet) -> Dict[str, Any]:
+    """
+    Automatically find and assign resources to projects that are not connected yet.
+    
+    Criteria for auto-assignment:
+    - PROJECT_CONNECTED is not "YES" (empty, "NO", or any other value)
+    - READY_TO_ASSIGN is "YES" (project is ready for assignment)
+    - Has a valid PROJECT_ID
+    
+    Returns summary of all assignments made.
+    """
+    print("🔍 Scanning for unconnected projects ready for assignment...")
+    
+    # Get all project data (skip header row)
+    all_rows = frontend_project.get_all_values()[2:]  # Skip 2 header rows
+    
+    # Column positions
+    project_id_col = column_to_number(PROJECT_COLUMNS.PROJECT_ID) - 1  # 0-based
+    ready_to_assign_col = column_to_number(PROJECT_COLUMNS.READY_TO_ASSIGN) - 1
+    project_connected_col = column_to_number(PROJECT_COLUMNS.PROJECT_CONNECTED) - 1
+    
+    unconnected_projects = []
+    assignment_results = {}
+    
+    # Find unconnected projects that are ready to assign
+    for row_idx, row_data in enumerate(all_rows):
+        if len(row_data) <= max(project_id_col, ready_to_assign_col, project_connected_col):
+            continue  # Skip rows that don't have enough columns
+            
+        project_id = row_data[project_id_col].strip() if project_id_col < len(row_data) else ""
+        ready_to_assign = row_data[ready_to_assign_col].strip() if ready_to_assign_col < len(row_data) else ""
+        project_connected = row_data[project_connected_col].strip() if project_connected_col < len(row_data) else ""
+        
+        # Check if project meets criteria for auto-assignment
+        if (project_id and 
+            ready_to_assign.upper() in ['YES', 'TRUE', '1', 'Y'] and
+            project_connected.upper() not in ['YES', 'TRUE', '1', 'Y']):
+            
+            # Clean up project ID (remove # if present)
+            clean_pid = project_id.lstrip('#')
+            unconnected_projects.append(clean_pid)
+    
+    print(f"📋 Found {len(unconnected_projects)} unconnected projects ready for assignment:")
+    for pid in unconnected_projects:
+        print(f"   • {formatPID(pid)}")
+    
+    if not unconnected_projects:
+        print("✅ No unconnected projects found that are ready for assignment.")
+        return {"projects_processed": 0, "assignments": {}}
+    
+    # Auto-assign resources to each unconnected project
+    for pid in unconnected_projects:
+        try:
+            print(f"\n🚀 Auto-assigning resources to project {formatPID(pid)}...")
+            
+            # Use our existing assignAll function
+            results = assignAll(pid, frontend_project, designer_sheet, writer_sheet, controller_sheet)
+            assignment_results[pid] = results
+            
+            # Mark project as connected after successful assignment
+            try:
+                row = getProjectRow(pid, frontend_project)
+                if row != -1:
+                    connected_col = column_to_number(PROJECT_COLUMNS.PROJECT_CONNECTED)
+                    frontend_project.update_cell(row, connected_col, "YES")
+                    print(f"✅ Marked project {formatPID(pid)} as CONNECTED")
+            except Exception as e:
+                print(f"⚠️  Failed to mark project {formatPID(pid)} as connected: {e}")
+                
+        except Exception as e:
+            print(f"❌ Failed to auto-assign project {formatPID(pid)}: {e}")
+            assignment_results[pid] = {"error": str(e)}
+    
+    # Summary
+    successful_assignments = sum(1 for result in assignment_results.values() if "error" not in result)
+    failed_assignments = len(assignment_results) - successful_assignments
+    
+    print(f"\n📊 Auto-Assignment Summary:")
+    print(f"   ✅ Successfully processed: {successful_assignments} projects")
+    print(f"   ❌ Failed: {failed_assignments} projects")
+    print(f"   🔗 All successful projects marked as CONNECTED")
+    
+    return {
+        "projects_processed": len(unconnected_projects),
+        "successful_assignments": successful_assignments,
+        "failed_assignments": failed_assignments,
+        "assignments": assignment_results
+    }

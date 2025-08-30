@@ -20,7 +20,7 @@ from .assignment import (
     getBestDesigner, getBestWriter, assignDesigner, assignWriter,
     getAssignmentRecommendations,
     getBestController, assignWriterController, assignDesignerController,
-    getControllerRecommendations, assignAll
+    getControllerRecommendations, assignAll, autoAssignUnconnectedProjects
 )
 
 # Load environment variables
@@ -155,6 +155,23 @@ def assign_all_to_project(project_id: str | int) -> Dict[str, str]:
     Returns a summary of what was assigned.
     """
     return assignAll(str(project_id), frontend_project, designer_sheet, writer_sheet, controller_sheet)
+
+
+def auto_assign_unconnected_projects() -> Dict[str, Any]:
+    """
+    Automatically find and assign resources to projects that are not connected yet.
+    
+    Perfect for running periodically (e.g., every 5 minutes from a bot) to automatically
+    process new projects that are ready for assignment.
+    
+    Criteria for auto-assignment:
+    - PROJECT_CONNECTED is not "YES" (empty, "NO", or any other value)  
+    - READY_TO_ASSIGN is "YES" (project is ready for assignment)
+    - Has a valid PROJECT_ID
+    
+    Returns detailed summary of all assignments made.
+    """
+    return autoAssignUnconnectedProjects(frontend_project, designer_sheet, writer_sheet, controller_sheet)
 
 
 def get_steam_topics() -> List[str]:

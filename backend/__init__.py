@@ -14,7 +14,8 @@ __all__ = [
     'get_best_designers', 'get_best_writers', 'get_best_controllers',
     'assign_designer_to_project', 'assign_writer_to_project',
     'assign_writer_controller_to_project', 'assign_design_controller_to_project',
-    'assign_all_to_project',  # The new assign all function
+    'assign_all_to_project',  # The assign all function
+    'auto_assign_unconnected_projects',  # The new auto-assign function for bot automation
     'get_assignment_recommendations', 'get_controller_recommendations',
     'bulk_assign_writers', 'bulk_assign_designers',
     'get_steam_topics',

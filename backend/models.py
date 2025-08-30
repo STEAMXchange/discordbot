@@ -65,6 +65,7 @@ class ProjectColumns:
     PROJECT_DEADLINE: str =         "AI"
     PROJECT_AUTHOR: str =           "AJ"
     PROJECT_DONE: str =             "AK"
+    PROJECT_CONNECTED: str =        "AL"
 
 
 # DESIGNER DATA MODELS
