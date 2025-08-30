@@ -31,3 +31,4 @@ wheels/
 MANIFEST
 
 steamxqualityauto.sh
+backend/test.py

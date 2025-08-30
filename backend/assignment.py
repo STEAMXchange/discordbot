@@ -6,12 +6,12 @@ Contains the core logic for ranking and assigning resources.
 from typing import List, Dict, Any, cast
 import gspread
 from .models import (
-    PROJECT_COLUMNS, DESIGNER_COLUMNS, WRITER_COLUMNS,
+    PROJECT_COLUMNS, DESIGNER_COLUMNS, WRITER_COLUMNS, CONTROLLER_COLUMNS,
     PLATFORM_HIERARCHY, TOPIC_HIERARCHY,
-    Designer, Writer
+    Designer, Writer, Controller
 )
 from .helpers import (
-    formatPID, getProjectRow, processDesignerRow, processWriterRow, filterValidRows
+    formatPID, getProjectRow, processDesignerRow, processWriterRow, processControllerRow, filterValidRows, column_to_number
 )
 
 
@@ -69,14 +69,14 @@ def assignDesigner(pid: str, frontend_project: gspread.Worksheet, designer_sheet
         raise ValueError("Project not found")
 
     # check if someone is already assigned
-    assign_col = ord(PROJECT_COLUMNS.ASSIGNED_DESIGNER) - ord('A') + 1
+    assign_col = column_to_number(PROJECT_COLUMNS.ASSIGNED_DESIGNER)
     already_assigned = frontend_project.cell(row, assign_col).value
     if already_assigned and already_assigned.strip():
         print(f"Project {formatPID(pid)} already assigned to {already_assigned}. Skipping.")
         return
 
     # get priority
-    priority_col = ord(PROJECT_COLUMNS.PRIORITY) - ord('A') + 1
+    priority_col = column_to_number(PROJECT_COLUMNS.PRIORITY)
     priority = frontend_project.cell(row, priority_col).value or "None"
 
     # get best designers
@@ -91,24 +91,33 @@ def assignDesigner(pid: str, frontend_project: gspread.Worksheet, designer_sheet
     print(f"Assigned {formatPID(pid)} (priority: {priority}) to designer: {chosen}")
 
 
-def assignWriter(pid: str, topic: str, frontend_project: gspread.Worksheet, writer_sheet: gspread.Worksheet) -> None:
-    """Assign the best available writer to a project based on topic."""
+def assignWriter(pid: str, frontend_project: gspread.Worksheet, writer_sheet: gspread.Worksheet) -> None:
+    """Assign the best available writer to a project based on project topic."""
     row = getProjectRow(pid, frontend_project)
     if row == -1:
         raise ValueError("Project not found")
 
     # check if someone is already assigned
-    assign_col = ord(PROJECT_COLUMNS.ASSIGNED_WRITER) - ord('A') + 1
+    assign_col = column_to_number(PROJECT_COLUMNS.ASSIGNED_WRITER)
     already_assigned = frontend_project.cell(row, assign_col).value
     if already_assigned and already_assigned.strip():
         print(f"Project {formatPID(pid)} already assigned to {already_assigned}. Skipping.")
         return
 
+    # get topic from project metadata
+    topic_col = column_to_number(PROJECT_COLUMNS.WRITER_TOPIC)
+    topic = frontend_project.cell(row, topic_col).value
+    if not topic or not topic.strip():
+        print(f"No topic specified for project {formatPID(pid)}. Cannot assign writer.")
+        return
+    
+    topic = topic.strip()
+
     # get best writers for this topic
     writers = getBestWriter(topic, writer_sheet)
     chosen = writers[0] if writers else None
     if not chosen:
-        print("No available writers to assign.")
+        print(f"No available writers to assign for topic: {topic}.")
         return
 
     # assign to sheet
@@ -116,7 +125,7 @@ def assignWriter(pid: str, topic: str, frontend_project: gspread.Worksheet, writ
     print(f"Assigned {formatPID(pid)} (topic: {topic}) to writer: {chosen}")
 
 
-def getAssignmentRecommendations(pid: str, topic: str, frontend_project: gspread.Worksheet, 
+def getAssignmentRecommendations(pid: str, frontend_project: gspread.Worksheet, 
                                 designer_sheet: gspread.Worksheet, writer_sheet: gspread.Worksheet) -> Dict[str, List[str]]:
     """Get assignment recommendations for both writer and designer without actually assigning."""
     row = getProjectRow(pid, frontend_project)
@@ -124,10 +133,186 @@ def getAssignmentRecommendations(pid: str, topic: str, frontend_project: gspread
         raise ValueError("Project not found")
 
     # get priority for designer recommendations
-    priority_col = ord(PROJECT_COLUMNS.PRIORITY) - ord('A') + 1
+    priority_col = column_to_number(PROJECT_COLUMNS.PRIORITY)
     priority = frontend_project.cell(row, priority_col).value or "None"
+    
+    # get topic from project metadata for writer recommendations
+    topic_col = column_to_number(PROJECT_COLUMNS.WRITER_TOPIC)
+    topic = frontend_project.cell(row, topic_col).value
+    if not topic or not topic.strip():
+        topic = "Science"  # Default fallback topic
+    else:
+        topic = topic.strip()
 
     return {
         "writers": getBestWriter(topic, writer_sheet)[:5],  # Top 5 writers
         "designers": getBestDesigner(priority, designer_sheet)[:5]  # Top 5 designers
     }
+
+
+def getBestController(speciality: str, controller_sheet: gspread.Worksheet) -> List[str]:
+    """
+    Returns controller names ranked best-to-worst based on KPI, speciality match, and workload.
+    - Speciality should be "Writing" or "Design"
+    - Sorts by score (KPI - workload penalty), with speciality match as filter.
+    """
+    all_rows: List[List[Any]] = cast(List[List[Any]], controller_sheet.get_all_values()[1:])  # skip header
+    
+    # Filter valid rows
+    valid_rows: List[List[str]] = filterValidRows(all_rows, CONTROLLER_COLUMNS.NAME)
+    ranked: List[Controller] = []
+
+    for row in valid_rows:
+        try:
+            controller = processControllerRow(row, speciality)
+            # Only include controllers that match the speciality or can handle both
+            if controller.speciality.upper() in [speciality.upper(), "BOTH", "ANY"]:
+                ranked.append(controller)
+        except Exception:
+            continue
+
+    # Sort by score (descending)
+    ranked.sort(key=lambda c: -c.score)
+    return [c.name for c in ranked]
+
+
+def assignWriterController(pid: str, frontend_project: gspread.Worksheet, controller_sheet: gspread.Worksheet) -> None:
+    """Assign the best available writing controller to a project."""
+    row = getProjectRow(pid, frontend_project)
+    if row == -1:
+        raise ValueError("Project not found")
+
+    # check if someone is already assigned
+    assign_col = column_to_number(PROJECT_COLUMNS.WRITER_QC_CONTROLLER)
+    already_assigned = frontend_project.cell(row, assign_col).value
+    if already_assigned and already_assigned.strip():
+        print(f"Project {formatPID(pid)} already has writer controller assigned: {already_assigned}. Skipping.")
+        return
+
+    # get best controllers for writing
+    controllers = getBestController("Writing", controller_sheet)
+    chosen = controllers[0] if controllers else None
+    if not chosen:
+        print("No available writing controllers to assign.")
+        return
+
+    # assign to sheet
+    frontend_project.update_cell(row, assign_col, chosen)
+    print(f"Assigned {formatPID(pid)} writer QC to controller: {chosen}")
+
+
+def assignDesignerController(pid: str, frontend_project: gspread.Worksheet, controller_sheet: gspread.Worksheet) -> None:
+    """Assign the best available design controller to a project."""
+    row = getProjectRow(pid, frontend_project)
+    if row == -1:
+        raise ValueError("Project not found")
+
+    # check if someone is already assigned
+    assign_col = column_to_number(PROJECT_COLUMNS.DESIGN_QC_CONTROLLER)
+    already_assigned = frontend_project.cell(row, assign_col).value
+    if already_assigned and already_assigned.strip():
+        print(f"Project {formatPID(pid)} already has design controller assigned: {already_assigned}. Skipping.")
+        return
+
+    # get best controllers for design
+    controllers = getBestController("Design", controller_sheet)
+    chosen = controllers[0] if controllers else None
+    if not chosen:
+        print("No available design controllers to assign.")
+        return
+
+    # assign to sheet
+    frontend_project.update_cell(row, assign_col, chosen)
+    print(f"Assigned {formatPID(pid)} design QC to controller: {chosen}")
+
+
+def getControllerRecommendations(pid: str, frontend_project: gspread.Worksheet, controller_sheet: gspread.Worksheet) -> Dict[str, List[str]]:
+    """Get controller recommendations for both writing and design QC without actually assigning."""
+    row = getProjectRow(pid, frontend_project)
+    if row == -1:
+        raise ValueError("Project not found")
+
+    return {
+        "writer_controllers": getBestController("Writing", controller_sheet)[:5],  # Top 5 writing controllers
+        "design_controllers": getBestController("Design", controller_sheet)[:5]  # Top 5 design controllers
+    }
+
+
+def assignAll(pid: str, frontend_project: gspread.Worksheet, designer_sheet: gspread.Worksheet, 
+              writer_sheet: gspread.Worksheet, controller_sheet: gspread.Worksheet) -> Dict[str, str]:
+    """
+    Assign everything needed for a project: writer, designer, and their QC controllers.
+    Only assigns what's actually required based on project requirements.
+    Returns a summary of what was assigned.
+    """
+    row = getProjectRow(pid, frontend_project)
+    if row == -1:
+        raise ValueError("Project not found")
+
+    results = {
+        "writer": "Not required",
+        "writer_controller": "Not required", 
+        "designer": "Not required",
+        "design_controller": "Not required"
+    }
+
+    # Check what's required for this project
+    writer_required_col = column_to_number(PROJECT_COLUMNS.WRITER_REQUIRED)
+    designer_required_col = column_to_number(PROJECT_COLUMNS.DESIGNER_REQUIRED)
+    
+    writer_required = frontend_project.cell(row, writer_required_col).value
+    designer_required = frontend_project.cell(row, designer_required_col).value
+    
+    # Normalize the values (handle YES/NO, True/False, etc.)
+    writer_needed = str(writer_required).upper() in ['YES', 'TRUE', '1', 'Y']
+    designer_needed = str(designer_required).upper() in ['YES', 'TRUE', '1', 'Y']
+
+    print(f"🎯 Assigning all resources for project {formatPID(pid)}")
+    print(f"   Writer needed: {writer_needed}")
+    print(f"   Designer needed: {designer_needed}")
+
+    # Assign writer and writer controller if needed
+    if writer_needed:
+        try:
+            assignWriter(pid, frontend_project, writer_sheet)
+            results["writer"] = "Assigned"
+            
+            # Assign writer controller after writer is assigned
+            try:
+                assignWriterController(pid, frontend_project, controller_sheet)
+                results["writer_controller"] = "Assigned"
+            except Exception as e:
+                results["writer_controller"] = f"Failed: {str(e)}"
+                print(f"⚠️  Writer controller assignment failed: {e}")
+                
+        except Exception as e:
+            results["writer"] = f"Failed: {str(e)}"
+            results["writer_controller"] = "Skipped (no writer)"
+            print(f"⚠️  Writer assignment failed: {e}")
+
+    # Assign designer and design controller if needed
+    if designer_needed:
+        try:
+            assignDesigner(pid, frontend_project, designer_sheet)
+            results["designer"] = "Assigned"
+            
+            # Assign design controller after designer is assigned
+            try:
+                assignDesignerController(pid, frontend_project, controller_sheet)
+                results["design_controller"] = "Assigned"
+            except Exception as e:
+                results["design_controller"] = f"Failed: {str(e)}"
+                print(f"⚠️  Design controller assignment failed: {e}")
+                
+        except Exception as e:
+            results["designer"] = f"Failed: {str(e)}"
+            results["design_controller"] = "Skipped (no designer)"
+            print(f"⚠️  Designer assignment failed: {e}")
+
+    print(f"✅ Assignment completed for project {formatPID(pid)}")
+    print(f"   📝 Writer: {results['writer']}")
+    print(f"   🔍 Writer QC: {results['writer_controller']}")
+    print(f"   🎨 Designer: {results['designer']}")
+    print(f"   🔍 Design QC: {results['design_controller']}")
+    
+    return results

@@ -55,13 +55,16 @@ class ProjectColumns:
     DESIGN_QC_RESULT: str =         "AA"
 
     # METADATA
-    PROJECT_START_DATE: str =       "AC"
+    PROJECT_START_DATE: str =       "AB"
     WRITER_TOPIC: str =             "AC"
     WRITER_DONE_DATE: str =         "AD"
     WRITER_QC_EXIT_DATE: str =      "AE"
     DESIGN_DONE_DATE: str =         "AF"
     DESIGN_QC_EXIT_DATE: str =      "AG"
     PROJECT_END_DATE: str =         "AH"
+    PROJECT_DEADLINE: str =         "AI"
+    PROJECT_AUTHOR: str =           "AJ"
+    PROJECT_DONE: str =             "AK"
 
 
 # DESIGNER DATA MODELS
@@ -120,11 +123,32 @@ class WriterColumns:
     AVG_TURNAROUND_TIME: str =  'J'
     KPI: str =                  'K'
 
+# QUALITY DATA MODELS
+@dataclass
+class Controller:
+    name:                   str
+    speciality:             str  # "Design" or "Writing"
+    ongoing:                List[str]  # list of PIDs currently being QC'd
+    total:                  List[str]  # list of all completed QC PIDs
+    kpi:                    float
+    open_tasks:             int = 0
+    score:                  float = 0.0
+
+
+@dataclass(frozen=True)
+class ControllerColumns:
+    NAME: str =                 'A'
+    SPECIALITY: str =           'B'  # Design / Writing
+    ONGOING: str =              'C'  # list of PIDs
+    TOTAL: str =                'D'  # list of completed PIDs
+    KPI: str =                  'E'
+
 
 # Create singleton instances for use throughout the codebase
 PROJECT_COLUMNS = ProjectColumns()
 DESIGNER_COLUMNS = DesignerColumns()
 WRITER_COLUMNS = WriterColumns()
+CONTROLLER_COLUMNS = ControllerColumns()
 
 
 # PLATFORM AND TOPIC HIERARCHIES

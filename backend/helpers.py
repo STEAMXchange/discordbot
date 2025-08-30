@@ -6,10 +6,21 @@ Contains utility functions for data processing and sheet interactions.
 from typing import Union, List, Dict, Any, cast
 import gspread
 from .models import (
-    PROJECT_COLUMNS, DESIGNER_COLUMNS, WRITER_COLUMNS,
+    PROJECT_COLUMNS, DESIGNER_COLUMNS, WRITER_COLUMNS, CONTROLLER_COLUMNS,
     PLATFORM_HIERARCHY, TOPIC_HIERARCHY,
-    Designer, Writer
+    Designer, Writer, Controller
 )
+
+
+def column_to_number(column: str) -> int:
+    """
+    Convert Excel column letters to column number (1-based).
+    Examples: A=1, B=2, ..., Z=26, AA=27, AB=28, ..., AC=29
+    """
+    result = 0
+    for char in column.upper():
+        result = result * 26 + (ord(char) - ord('A') + 1)
+    return result
 
 
 def formatPID(pid: Union[str, int]) -> str:
@@ -89,7 +100,8 @@ def getTopicPenalty(required_topic: str, writer_category: str) -> int:
 def processDesignerRow(row: List[str], platform_rank: Dict[str, int], priority: str) -> Designer:
     """Process a single designer row from the sheet."""
     def get(col: str) -> str:
-        idx = ord(getattr(DESIGNER_COLUMNS, col)) - ord('A')
+        column_letter = getattr(DESIGNER_COLUMNS, col)
+        idx = column_to_number(column_letter) - 1  # Convert to 0-based index
         return row[idx].strip() if idx < len(row) else ""
 
     name = get('NAME')
@@ -124,7 +136,8 @@ def processDesignerRow(row: List[str], platform_rank: Dict[str, int], priority: 
 def processWriterRow(row: List[str], topic_rank: Dict[str, int], topic: str) -> Writer:
     """Process a single writer row from the sheet."""
     def get(col: str) -> str:
-        idx = ord(getattr(WRITER_COLUMNS, col)) - ord('A')
+        column_letter = getattr(WRITER_COLUMNS, col)
+        idx = column_to_number(column_letter) - 1  # Convert to 0-based index
         return row[idx].strip() if idx < len(row) else ""
 
     name = get('NAME')
@@ -155,12 +168,42 @@ def processWriterRow(row: List[str], topic_rank: Dict[str, int], topic: str) -> 
     )
 
 
+def processControllerRow(row: List[str], speciality: str) -> Controller:
+    """Process a single controller row from the sheet."""
+    def get(col: str) -> str:
+        column_letter = getattr(CONTROLLER_COLUMNS, col)
+        idx = column_to_number(column_letter) - 1  # Convert to 0-based index
+        return row[idx].strip() if idx < len(row) else ""
+
+    name = get('NAME')
+    controller_speciality = get('SPECIALITY')
+    kpi = float(get('KPI') or 0)
+
+    ongoing = [pid.strip() for pid in get('ONGOING').split(',') if pid.strip()]
+    total = [pid.strip() for pid in get('TOTAL').split(',') if pid.strip()]
+    open_tasks = len(ongoing)
+
+    # Score based on KPI and workload (fewer open tasks = higher score)
+    workload_penalty = open_tasks * 2  # 2 points penalty per open task
+    score = kpi - workload_penalty
+
+    return Controller(
+        name=name,
+        speciality=controller_speciality,
+        ongoing=ongoing,
+        total=total,
+        kpi=kpi,
+        open_tasks=open_tasks,
+        score=score
+    )
+
+
 def filterValidRows(sheet_data: List[List[Any]], name_column: str) -> List[List[str]]:
     """Filter and convert sheet data to valid string rows."""
     valid_rows: List[List[str]] = []
     for row_data in sheet_data:
         if len(row_data) > 0:
-            name_idx = ord(name_column) - ord('A')
+            name_idx = column_to_number(name_column) - 1  # Convert to 0-based index
             if name_idx < len(row_data) and str(row_data[name_idx]).strip():
                 valid_rows.append([str(cell) for cell in row_data])
     return valid_rows

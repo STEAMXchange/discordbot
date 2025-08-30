@@ -11,14 +11,16 @@ from dotenv import load_dotenv
 
 # Import our modular components
 from .models import (
-    PROJECT_COLUMNS, DESIGNER_COLUMNS, WRITER_COLUMNS,
+    PROJECT_COLUMNS, DESIGNER_COLUMNS, WRITER_COLUMNS, CONTROLLER_COLUMNS,
     STEAMTopic, ProjectColumns, DesignerColumns, WriterColumns,
-    Designer, Writer
+    Designer, Writer, Controller
 )
-from .helpers import formatPID, getProjectRow
+from .helpers import formatPID, getProjectRow, column_to_number
 from .assignment import (
     getBestDesigner, getBestWriter, assignDesigner, assignWriter,
-    getAssignmentRecommendations
+    getAssignmentRecommendations,
+    getBestController, assignWriterController, assignDesignerController,
+    getControllerRecommendations, assignAll
 )
 
 # Load environment variables
@@ -44,6 +46,7 @@ contact_sheet: gspread.Worksheet = management_sheet.worksheet("Contact Directory
 # WORK SPECIFIC SHEETS
 designer_sheet: gspread.Worksheet = management_sheet.worksheet("Designers")
 writer_sheet: gspread.Worksheet = management_sheet.worksheet("Writers")
+controller_sheet: gspread.Worksheet = management_sheet.worksheet("Quality Controllers")
 
 
 # PUBLIC API FUNCTIONS
@@ -72,14 +75,14 @@ def assign_designer_to_project(project_id: str | int) -> None:
     assignDesigner(str(project_id), frontend_project, designer_sheet)
 
 
-def assign_writer_to_project(project_id: str | int, topic: str) -> None:
+def assign_writer_to_project(project_id: str | int) -> None:
     """Assign the best available writer to a project for the given topic."""
-    assignWriter(str(project_id), topic, frontend_project, writer_sheet)
+    assignWriter(str(project_id), frontend_project, writer_sheet)
 
 
-def get_assignment_recommendations(project_id: str | int, topic: str) -> Dict[str, List[str]]:
+def get_assignment_recommendations(project_id: str | int,) -> Dict[str, List[str]]:
     """Get assignment recommendations without actually assigning."""
-    return getAssignmentRecommendations(str(project_id), topic, frontend_project, designer_sheet, writer_sheet)
+    return getAssignmentRecommendations(str(project_id), frontend_project, designer_sheet, writer_sheet)
 
 
 def get_project_info(project_id: str | int) -> Dict[str, Any]:
@@ -89,11 +92,11 @@ def get_project_info(project_id: str | int) -> Dict[str, Any]:
         return {}
     
     # Get basic project data
-    project_name = frontend_project.cell(row, ord(PROJECT_COLUMNS.PROJECT_NAME) - ord('A') + 1).value or ""
-    description = frontend_project.cell(row, ord(PROJECT_COLUMNS.DESCRIPTION) - ord('A') + 1).value or ""
-    priority = frontend_project.cell(row, ord(PROJECT_COLUMNS.PRIORITY) - ord('A') + 1).value or ""
-    assigned_writer = frontend_project.cell(row, ord(PROJECT_COLUMNS.ASSIGNED_WRITER) - ord('A') + 1).value or ""
-    assigned_designer = frontend_project.cell(row, ord(PROJECT_COLUMNS.ASSIGNED_DESIGNER) - ord('A') + 1).value or ""
+    project_name = frontend_project.cell(row, column_to_number(PROJECT_COLUMNS.PROJECT_NAME)).value or ""
+    description = frontend_project.cell(row, column_to_number(PROJECT_COLUMNS.DESCRIPTION)).value or ""
+    priority = frontend_project.cell(row, column_to_number(PROJECT_COLUMNS.PRIORITY)).value or ""
+    assigned_writer = frontend_project.cell(row, column_to_number(PROJECT_COLUMNS.ASSIGNED_WRITER)).value or ""
+    assigned_designer = frontend_project.cell(row, column_to_number(PROJECT_COLUMNS.ASSIGNED_DESIGNER)).value or ""
     
     return {
         "project_id": format_project_id(project_id),
@@ -111,7 +114,7 @@ def bulk_assign_writers(project_topics: List[tuple[str, str]]) -> None:
     """Bulk assign writers to multiple projects. Takes list of (project_id, topic) tuples."""
     for project_id, topic in project_topics:
         try:
-            assign_writer_to_project(project_id, topic)
+            assign_writer_to_project(project_id)
         except Exception as e:
             print(f"Failed to assign writer to project {project_id}: {e}")
 
@@ -125,10 +128,38 @@ def bulk_assign_designers(project_ids: List[str]) -> None:
             print(f"Failed to assign designer to project {project_id}: {e}")
 
 
+def get_best_controllers(speciality: str = "Writing") -> List[str]:
+    """Get list of controllers ranked by suitability for the given speciality (Writing/Design)."""
+    return getBestController(speciality, controller_sheet)
+
+
+def assign_writer_controller_to_project(project_id: str | int) -> None:
+    """Assign the best available writing controller to a project."""
+    assignWriterController(str(project_id), frontend_project, controller_sheet)
+
+
+def assign_design_controller_to_project(project_id: str | int) -> None:
+    """Assign the best available design controller to a project."""
+    assignDesignerController(str(project_id), frontend_project, controller_sheet)
+
+
+def get_controller_recommendations(project_id: str | int) -> Dict[str, List[str]]:
+    """Get controller recommendations for both writing and design QC without actually assigning."""
+    return getControllerRecommendations(str(project_id), frontend_project, controller_sheet)
+
+
+def assign_all_to_project(project_id: str | int) -> Dict[str, str]:
+    """
+    Assign everything needed for a project: writer, designer, and their QC controllers.
+    Only assigns what's actually required based on project requirements.
+    Returns a summary of what was assigned.
+    """
+    return assignAll(str(project_id), frontend_project, designer_sheet, writer_sheet, controller_sheet)
+
+
 def get_steam_topics() -> List[str]:
     """Get available STEAM topics."""
     return [topic.value for topic in STEAMTopic]
-
 
 if __name__ == "__main__":
     # Example usage of the clean API
@@ -146,7 +177,7 @@ if __name__ == "__main__":
         
         # Get recommendations without assigning
         if project_info:
-            recommendations = get_assignment_recommendations("000001", "Science")
+            recommendations = get_assignment_recommendations("000001")
             print(f"Top writers for Science: {recommendations['writers'][:3]}")
             print(f"Top designers: {recommendations['designers'][:3]}")
         
