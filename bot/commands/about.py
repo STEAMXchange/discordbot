@@ -4,18 +4,19 @@ About command - Shows version info and system details.
 
 import platform
 import sys
-import nextcord
 from datetime import datetime
+from typing import Any
+import nextcord
 from nextcord import Interaction, Embed
 
 
-def setup(bot, utils):
+def setup(bot: Any, utils: Any) -> None:
     """Setup function to register the command with the bot."""
     
     @bot.slash_command(name="about", description="Show bot version and system information.")
-    async def about(interaction: Interaction):
+    async def about(interaction: Interaction) -> None:
         # Create an embed for better formatting
-        embed = Embed(
+        embed: Embed = Embed(
             title="🤖 SteamXQuality Bot",
             description="Quality Control Discord Bot for STEAMXchange",
             color=0x00ff00
@@ -40,8 +41,8 @@ def setup(bot, utils):
         )
         
         # Bot stats
-        guild_count = len(bot.guilds)
-        user_count = sum(guild.member_count for guild in bot.guilds)
+        guild_count: int = len(bot.guilds)
+        user_count: int = sum(guild.member_count or 0 for guild in bot.guilds)
         
         embed.add_field(
             name="📊 Bot Stats",
@@ -52,6 +53,6 @@ def setup(bot, utils):
         )
 
         embed.set_footer(text="Made with ❤️ for STEAMXchange")
-        embed.timestamp = datetime.utcnow()
+        embed.timestamp = datetime.now()
         
         await interaction.response.send_message(embed=embed)
