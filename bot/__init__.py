@@ -1,11 +1,5 @@
 """
-Discord Bot module for SteamXQuality project management.
-Handles Discord interactions, commands, and bot functionality.
+SteamXQuality Discord Bot Package.
 """
 
-__version__ = "2.0.0"
-__all__ = [
-    'BotUtils',
-    'qc_main',
-    'commands'
-]
+__version__ = "1.0.0"

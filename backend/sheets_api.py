@@ -3,6 +3,7 @@ Clean Google Sheets API interface for SteamXQuality project management.
 This is the main backend interface that provides a clean API for sheet operations.
 """
 
+import json
 import os
 from typing import List, Dict, Any
 import gspread
@@ -15,7 +16,7 @@ from .models import (
     STEAMTopic, ProjectColumns, DesignerColumns, WriterColumns,
     Designer, Writer, Controller
 )
-from .helpers import formatPID, getProjectRow, column_to_number
+from .helpers import formatPID, getProjectRow, column_to_number, get_discord_username_from_name
 from .assignment import (
     getBestDesigner, getBestWriter, assignDesigner, assignWriter,
     getAssignmentRecommendations,
@@ -173,6 +174,99 @@ def auto_assign_unconnected_projects() -> Dict[str, Any]:
     """
     return autoAssignUnconnectedProjects(frontend_project, designer_sheet, writer_sheet, controller_sheet)
 
+def find_person(search_term):
+    """
+    Search for employee by NAME, DISCORD, or EMAIL across all departments in the same sheet
+    Returns their full identity info as JSON
+    
+    All departments are in the same sheet with different column ranges:
+    - Writers: A=NAME, B=DISCORD, C=EMAIL
+    - Designers: E=NAME, F=DISCORD, G=EMAIL  
+    - Quality Controllers: I=NAME, J=DISCORD, K=EMAIL
+    - Management: M=NAME, N=POSITION, O=DISCORD, P=EMAIL
+    """
+    search_term = search_term.strip().lower()
+    
+    # Get the contact directory sheet (where all departments are)
+    sheet = management_sheet.worksheet("Contact Directory")
+    
+    # Get all values from the sheet
+    all_values = sheet.get_all_values()
+    if len(all_values) <= 1:  # No data rows
+        return json.dumps({"error": "No data found"}, indent=2)
+    
+    # Department configurations with their column layouts (all in same sheet)
+    departments = [
+        {
+            'name': 'Writers',
+            'name_col': 0,    # A
+            'discord_col': 1, # B  
+            'email_col': 2,   # C
+            'position_col': None,
+            'default_position': 'Writer'
+        },
+        {
+            'name': 'Designers', 
+            'name_col': 4,    # E
+            'discord_col': 5, # F
+            'email_col': 6,   # G
+            'position_col': None,
+            'default_position': 'Designer'
+        },
+        {
+            'name': 'Quality Controllers',
+            'name_col': 8,    # I
+            'discord_col': 9, # J
+            'email_col': 10,  # K
+            'position_col': None,
+            'default_position': 'Quality Controller'
+        },
+        {
+            'name': 'Management',
+            'name_col': 12,   # M
+            'discord_col': 14, # O  
+            'email_col': 15,  # P
+            'position_col': 13, # N
+            'default_position': 'Manager'
+        }
+    ]
+    
+    # Skip header row and search for the person in all departments
+    for row in all_values[1:]:
+        if len(row) == 0:
+            continue
+            
+        # Check each department's columns in this row
+        for dept in departments:
+            # Extract fields from the row based on column positions
+            name = row[dept['name_col']].strip() if dept['name_col'] < len(row) else ""
+            discord = row[dept['discord_col']].strip() if dept['discord_col'] < len(row) else ""
+            email = row[dept['email_col']].strip() if dept['email_col'] < len(row) else ""
+            
+            # Skip if this department section is empty for this row
+            if not name and not discord and not email:
+                continue
+            
+            # Get position if available
+            if dept['position_col'] is not None and dept['position_col'] < len(row):
+                position = row[dept['position_col']].strip() or dept['default_position']
+            else:
+                position = dept['default_position']
+            
+            # Check if search term matches any field
+            if (search_term in name.lower() or 
+                search_term in discord.lower() or 
+                search_term in email.lower()):
+                
+                return json.dumps({
+                    "name": name,
+                    "discord": discord if discord else None,
+                    "email": email,
+                    "department": dept['name'],
+                    "position": position,
+                }, indent=2)
+    
+    return json.dumps({"error": "Person not found"}, indent=2)
 
 def get_steam_topics() -> List[str]:
     """Get available STEAM topics."""

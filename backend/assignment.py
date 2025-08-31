@@ -243,6 +243,7 @@ def assignAll(pid: str, frontend_project: gspread.Worksheet, designer_sheet: gsp
     """
     Assign everything needed for a project: writer, designer, and their QC controllers.
     Only assigns what's actually required based on project requirements.
+    RESPECTS PHASE DEPENDENCIES: Won't assign designer until writing is complete.
     Returns a summary of what was assigned.
     """
     row = getProjectRow(pid, frontend_project)
@@ -290,24 +291,38 @@ def assignAll(pid: str, frontend_project: gspread.Worksheet, designer_sheet: gsp
             results["writer_controller"] = "Skipped (no writer)"
             print(f"⚠️  Writer assignment failed: {e}")
 
-    # Assign designer and design controller if needed
+    # Check phase dependencies before assigning designer
     if designer_needed:
+        # Import deadline manager functions to check dependencies
         try:
-            assignDesigner(pid, frontend_project, designer_sheet)
-            results["designer"] = "Assigned"
-            
-            # Assign design controller after designer is assigned
+            from .deadline_manager import should_contact_designer
+            can_assign_designer = should_contact_designer(pid, frontend_project)
+        except ImportError:
+            # Fallback if deadline manager not available
+            can_assign_designer = True
+            print("⚠️  Deadline manager not available, proceeding without phase check")
+        
+        if can_assign_designer:
             try:
-                assignDesignerController(pid, frontend_project, controller_sheet)
-                results["design_controller"] = "Assigned"
-            except Exception as e:
-                results["design_controller"] = f"Failed: {str(e)}"
-                print(f"⚠️  Design controller assignment failed: {e}")
+                assignDesigner(pid, frontend_project, designer_sheet)
+                results["designer"] = "Assigned"
                 
-        except Exception as e:
-            results["designer"] = f"Failed: {str(e)}"
-            results["design_controller"] = "Skipped (no designer)"
-            print(f"⚠️  Designer assignment failed: {e}")
+                # Assign design controller after designer is assigned
+                try:
+                    assignDesignerController(pid, frontend_project, controller_sheet)
+                    results["design_controller"] = "Assigned"
+                except Exception as e:
+                    results["design_controller"] = f"Failed: {str(e)}"
+                    print(f"⚠️  Design controller assignment failed: {e}")
+                    
+            except Exception as e:
+                results["designer"] = f"Failed: {str(e)}"
+                results["design_controller"] = "Skipped (no designer)"
+                print(f"⚠️  Designer assignment failed: {e}")
+        else:
+            results["designer"] = "Waiting for writing completion"
+            results["design_controller"] = "Waiting for writing completion"
+            print(f"⏳ Designer assignment postponed - waiting for writing phase to complete")
 
     print(f"✅ Assignment completed for project {formatPID(pid)}")
     print(f"   📝 Writer: {results['writer']}")
@@ -322,6 +337,7 @@ def autoAssignUnconnectedProjects(frontend_project: gspread.Worksheet, designer_
                                  writer_sheet: gspread.Worksheet, controller_sheet: gspread.Worksheet) -> Dict[str, Any]:
     """
     Automatically find and assign resources to projects that are not connected yet.
+    Now includes automatic deadline calculation and phase-aware assignment.
     
     Criteria for auto-assignment:
     - PROJECT_CONNECTED is not "YES" (empty, "NO", or any other value)
@@ -374,11 +390,24 @@ def autoAssignUnconnectedProjects(frontend_project: gspread.Worksheet, designer_
         try:
             print(f"\n🚀 Auto-assigning resources to project {formatPID(pid)}...")
             
-            # Use our existing assignAll function
+            # Step 1: Calculate and update deadlines if project deadline exists
+            try:
+                from .deadline_manager import update_project_deadlines
+                update_result = update_project_deadlines(pid, frontend_project, auto_calculate=True)
+                if update_result:
+                    print(f"⏰ Calculated and updated deadlines for project {formatPID(pid)}")
+                else:
+                    print(f"⏰ No deadline calculation needed for project {formatPID(pid)}")
+            except ImportError:
+                print("⚠️  Deadline manager not available, skipping deadline calculation")
+            except Exception as e:
+                print(f"⚠️  Deadline calculation failed for {formatPID(pid)}: {e}")
+            
+            # Step 2: Use our existing assignAll function (which now respects phase dependencies)
             results = assignAll(pid, frontend_project, designer_sheet, writer_sheet, controller_sheet)
             assignment_results[pid] = results
             
-            # Mark project as connected after successful assignment
+            # Step 3: Mark project as connected after successful assignment
             try:
                 row = getProjectRow(pid, frontend_project)
                 if row != -1:
@@ -400,9 +429,111 @@ def autoAssignUnconnectedProjects(frontend_project: gspread.Worksheet, designer_
     print(f"   ✅ Successfully processed: {successful_assignments} projects")
     print(f"   ❌ Failed: {failed_assignments} projects")
     print(f"   🔗 All successful projects marked as CONNECTED")
+    print(f"   ⏰ Deadlines calculated and updated automatically")
+    print(f"   🔄 Phase dependencies respected (designers wait for writing completion)")
     
     return {
         "projects_processed": len(unconnected_projects),
+        "successful_assignments": successful_assignments,
+        "failed_assignments": failed_assignments,
+        "assignments": assignment_results
+    }
+
+
+def checkPendingDesignerAssignments(frontend_project: gspread.Worksheet, designer_sheet: gspread.Worksheet, 
+                                  controller_sheet: gspread.Worksheet) -> Dict[str, Any]:
+    """
+    Check for projects where writing is now complete and designers can be assigned.
+    This is perfect for running periodically to assign designers who were waiting for writing completion.
+    
+    Returns summary of designer assignments made.
+    """
+    print("🎨 Checking for projects ready for designer assignment (writing complete)...")
+    
+    # Get all project data
+    all_rows = frontend_project.get_all_values()[2:]  # Skip 2 header rows
+    
+    # Column positions
+    project_id_col = column_to_number(PROJECT_COLUMNS.PROJECT_ID) - 1
+    designer_required_col = column_to_number(PROJECT_COLUMNS.DESIGNER_REQUIRED) - 1
+    assigned_designer_col = column_to_number(PROJECT_COLUMNS.ASSIGNED_DESIGNER) - 1
+    project_connected_col = column_to_number(PROJECT_COLUMNS.PROJECT_CONNECTED) - 1
+    
+    pending_designer_projects = []
+    assignment_results = {}
+    
+    # Find projects that need designer assignment
+    for row_idx, row_data in enumerate(all_rows):
+        if len(row_data) <= max(project_id_col, designer_required_col, assigned_designer_col, project_connected_col):
+            continue
+            
+        project_id = row_data[project_id_col].strip() if project_id_col < len(row_data) else ""
+        designer_required = row_data[designer_required_col].strip() if designer_required_col < len(row_data) else ""
+        assigned_designer = row_data[assigned_designer_col].strip() if assigned_designer_col < len(row_data) else ""
+        project_connected = row_data[project_connected_col].strip() if project_connected_col < len(row_data) else ""
+        
+        # Check if project needs designer assignment
+        if (project_id and 
+            project_connected.upper() in ['YES', 'TRUE', '1', 'Y'] and  # Project is connected
+            designer_required.upper() in ['YES', 'TRUE', '1', 'Y'] and  # Designer is required
+            not assigned_designer):  # But no designer assigned yet
+            
+            clean_pid = project_id.lstrip('#')
+            
+            # Check if writing phase is complete
+            try:
+                from .deadline_manager import should_contact_designer
+                if should_contact_designer(clean_pid, frontend_project):
+                    pending_designer_projects.append(clean_pid)
+                    print(f"   • {formatPID(clean_pid)} - Writing complete, ready for designer")
+                else:
+                    print(f"   • {formatPID(clean_pid)} - Still waiting for writing completion")
+            except ImportError:
+                # Fallback without phase checking
+                pending_designer_projects.append(clean_pid)
+                print(f"   • {formatPID(clean_pid)} - Added (no phase checking available)")
+    
+    print(f"🎨 Found {len(pending_designer_projects)} projects ready for designer assignment")
+    
+    if not pending_designer_projects:
+        return {"projects_processed": 0, "assignments": {}}
+    
+    # Assign designers to pending projects
+    for pid in pending_designer_projects:
+        try:
+            print(f"\n🎨 Assigning designer to project {formatPID(pid)}...")
+            
+            # Assign designer
+            assignDesigner(pid, frontend_project, designer_sheet)
+            
+            # Assign design controller
+            try:
+                assignDesignerController(pid, frontend_project, controller_sheet)
+                assignment_results[pid] = {
+                    "designer": "Assigned",
+                    "design_controller": "Assigned"
+                }
+            except Exception as e:
+                assignment_results[pid] = {
+                    "designer": "Assigned", 
+                    "design_controller": f"Failed: {str(e)}"
+                }
+                print(f"⚠️  Design controller assignment failed: {e}")
+                
+        except Exception as e:
+            print(f"❌ Failed to assign designer to project {formatPID(pid)}: {e}")
+            assignment_results[pid] = {"error": str(e)}
+    
+    # Summary
+    successful_assignments = sum(1 for result in assignment_results.values() if "error" not in result)
+    failed_assignments = len(assignment_results) - successful_assignments
+    
+    print(f"\n🎨 Designer Assignment Summary:")
+    print(f"   ✅ Successfully assigned: {successful_assignments} projects")
+    print(f"   ❌ Failed: {failed_assignments} projects")
+    
+    return {
+        "projects_processed": len(pending_designer_projects),
         "successful_assignments": successful_assignments,
         "failed_assignments": failed_assignments,
         "assignments": assignment_results

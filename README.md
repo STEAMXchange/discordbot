@@ -1,186 +1,192 @@
-# SteamXQuality - Discord Quality Control Bot
+# 🤖 SteamXQuality - Automated Project Management System
 
-A Discord bot that automates quality control processes for design projects, integrating with Google Sheets and Canva for seamless workflow management.
+A comprehensive Discord bot that automates project assignment and quality control processes, integrating with Google Sheets for seamless workflow management.
 
-## Features
+## ✨ Features
 
-- **Automated QC Processing**: Automatically analyzes Canva designs for font consistency and color compliance
-- **Google Sheets Integration**: Syncs project data, designer assignments, and QC results
-- **Discord Forum Management**: Handles forum posts, thread creation, and automatic tagging
-- **Permission System**: Role-based access control for different departments
-- **Auto-Expiration**: Automatically marks old threads as failed after 30 days
-- **Manual Override**: Support for manual QC review when needed
+### 🔄 **Automated Project Assignment**
+- **Smart Resource Assignment**: Automatically assigns writers, designers, and QC controllers based on skills and workload
+- **Real-time Processing**: Scans for new projects every 5 minutes
+- **Intelligent Matching**: Uses ranking algorithms for optimal assignments
+- **Auto-marking**: Marks processed projects as "CONNECTED"
 
-## Prerequisites
+### 📊 **Google Sheets Integration**
+- **Live Sync**: Real-time project data synchronization
+- **Assignment Tracking**: Monitors workloads and completion rates
+- **Statistics**: Comprehensive analytics and reporting
+- **Multi-sheet Support**: Projects, Designers, Writers, Controllers sheets
 
-- Python 3.8 or higher
-- Discord Bot Token
-- Google Sheets API credentials
-- Chrome/Chromium browser (for web scraping)
+### 🎛️ **Discord Bot Commands**
+- **Timer Management**: `/timer_status` to monitor automation
+- **Project Info**: Get detailed project information
+- **Quality Control**: Automated QC assignment and tracking
+- **Permission System**: Role-based access control
 
-## Installation
+### 🚀 **Backend API**
+- **Assignment Engine**: Intelligent resource allocation algorithms
+- **Data Models**: Clean data structures for all entities
+- **Helper Functions**: Utilities for sheet operations and formatting
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/STEAMXchange/discordbot.git
-   cd discordbot
-   ```
+## 🚀 Quick Start
 
-2. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Set up environment variables**
-   Create a .env file. (See config below)
-
-4. **Set up Google Sheets API**
-   - Create a Google Cloud Project
-   - Enable Google Sheets API
-   - Create a service account and download the JSON credentials file
-   - Place the credentials file in the project root
-   - Update the `GOOGLE_CREDENTIALS_FILE` in your `.env`
-
-5. **Configure Discord Bot**
-   - Create a Discord application and bot
-   - Enable required intents (Guilds, Members, Message Content, Messages)
-   - Add the bot to your server with appropriate permissions
-   - Update the `DISCORD_BOT_TOKEN` in your `.env`
-
-## Configuration
-
-Create a `.env` file in the project root
-You can use the .env.example to see what you need to setup.
-
-## Usage
-
-### Starting the Bot
-
+### 1. **Installation**
 ```bash
-python qc.py
+git clone <repository>
+cd steamxquality
+pip install -r requirements.txt
 ```
 
-### Discord Commands
-
-**Project Management:**
-- `/register <project_id>` - Link a thread to a project ID
-- `/unregister` - Unlink a thread from its project
-- `/getprojectid` - Get the project ID linked to this thread
-- `/whereisproject <project_id>` - Find the thread/location of a project ID
-- `/getprojectinfo <project_id>` - Get detailed info about a project ID
-- `/geturl` - Get the Canva URL for this thread's project
-
-**Quality Control:**
-- `/status` - Check which project a thread is linked to
-- `/mark <result> [reason]` - Mark QC result (PASS/FAIL)
-- `/qc <url>` - Manually run QC on a Canva URL
-- `/palette <image>` - Extract color palette from an image
-
-**Permissions Required:**
-- Most commands require QC role or manage messages permission
-- `/register`, `/mark`, `/unregister` require special permissions
-
-### Forum Post Requirements
-
-When posting in the designated forum channel, include:
-
-1. **Project ID**: Format `#000001` or `projectId: 000001`
-2. **Canva Link**: Direct link to the Canva design
-3. **Thumbnail**: Image attachment (required)
-4. **Override Option**: Add `|| --OVERRIDE ||` to skip automated QC
-
-### Quality Control Process
-
-1. **Automatic Detection**: Bot detects new forum posts
-2. **Validation**: Checks project ID, designer permissions, and Canva link
-3. **Analysis**: Extracts text and font data from Canva design
-4. **Scoring**: Evaluates font consistency and color compliance
-5. **Reporting**: Generates detailed QC report
-6. **Integration**: Updates Google Sheets with results
-
-## Architecture
-
-### Modular Design
-
-The bot uses a modular architecture for better maintainability and extensibility:
-
-- **`qc.py`**: Main bot file containing core functionality (events, initialization)
-- **`utils.py`**: Shared utilities including the `BotUtils` class for common operations
-- **`qc_helpers.py`**: Quality control specific functions (font analysis, text extraction)
-- **`commands/`**: Individual command modules, each with their own file
-
-### Adding New Commands
-
-To add a new command:
-
-1. Create a new file in the `commands/` directory
-2. Implement a `setup(bot, utils)` function
-3. Add the command using the bot and utils objects
-4. Import and register in the main `qc.py` file
-
-Example:
-```python
-# commands/newcommand.py
-def setup(bot, utils):
-    @bot.slash_command(name="newcommand", description="Description")
-    async def newcommand(interaction):
-        # Command logic here
-        pass
+### 2. **Configuration**
+Create a `.env` file from `env.example`:
+```env
+DISCORD_BOT_TOKEN=your_discord_token
+PROJECT_SHEET_ID=your_google_sheet_id
+MANAGEMENT_SHEET_ID=your_management_sheet_id
+GOOGLE_CREDENTIALS_FILE=your_credentials.json
+QC_ROLE_ID=your_qc_role_id
+OWNER_USER_ID=your_discord_user_id
 ```
 
-## File Structure
+### 3. **Google Sheets Setup**
+- Create a Google Cloud Project
+- Enable Google Sheets API
+- Create service account credentials
+- Share your sheets with the service account email
+
+### 4. **Run the Bot**
+```bash
+# Recommended method
+python run_bot.py
+
+# Or directly
+python bot/bot.py
+```
+
+## 📁 Project Structure
 
 ```
 steamxquality/
-├── qc.py                    # Main Discord bot application (streamlined)
-├── utils.py                 # Shared utilities and BotUtils class
-├── qc_helpers.py           # QC-specific helper functions
-├── sheets.py               # Google Sheets integration
-├── commands/               # Modular command structure
-│   ├── __init__.py         # Commands package initializer
-│   ├── register.py         # /register command
-│   ├── unregister.py       # /unregister command
-│   ├── status.py           # /status command
-│   ├── getprojectid.py     # /getprojectid command
-│   ├── whereisproject.py   # /whereisproject command
-│   ├── geturl.py           # /geturl command
-│   ├── getprojectinfo.py   # /getprojectinfo command
-│   ├── mark.py             # /mark command
-│   ├── qc.py               # /qc command
-│   └── palette.py          # /palette command
-├── requirements.txt        # Python dependencies
-├── .env                    # Environment variables (create from env.example)
-├── env.example             # Example environment configuration
-├── .gitignore              # Git ignore rules
-├── thread_db.json          # Thread database (auto-generated)
-└── README.md               # This file
+├── 🤖 bot/                     # Discord Bot
+│   ├── bot.py                  # Main bot file
+│   ├── timers.py              # Automated tasks (@tasks.loop)
+│   └── __init__.py            # Package init
+├── 🔧 backend/                # Assignment Engine
+│   ├── sheets_api.py          # Main API interface
+│   ├── assignment.py          # Assignment algorithms
+│   ├── models.py              # Data models
+│   ├── helpers.py             # Utility functions
+│   └── test.py                # Testing playground
+├── 📋 Requirements & Config
+│   ├── requirements.txt       # Python dependencies
+│   ├── env.example           # Environment template
+│   └── run_bot.py            # Bot launcher script
+└── 📄 Documentation
+    └── README.md             # This file
 ```
-## Troubleshooting
 
-### Common Issues
+## 🎯 How It Works
 
-1. **Bot not responding**: Check Discord token and bot permissions
-2. **Sheets access denied**: Verify Google credentials and API permissions
-3. **Chrome driver issues**: Ensure Chrome/Chromium is installed
-4. **Permission errors**: Check role IDs and bot permissions
+### **Automated Assignment Flow:**
+1. **🔍 Scanning**: Every 5 minutes, scans for unconnected projects
+2. **✅ Validation**: Checks if project is `READY_TO_ASSIGN = "YES"`
+3. **🧠 Assignment**: Uses smart algorithms to assign:
+   - **Writer** (based on topic expertise and workload)
+   - **Designer** (based on platform skills and priority)
+   - **QC Controllers** (for both writing and design)
+4. **🔗 Marking**: Sets `PROJECT_CONNECTED = "YES"`
+5. **📢 Notification**: Sends Discord notification with results
 
-### Logs
+### **Assignment Algorithms:**
+- **Writers**: Ranked by topic match, KPI, and current workload
+- **Designers**: Ranked by platform expertise, KPI, and priority
+- **Controllers**: Ranked by speciality match and availability
 
-The bot provides detailed console output for debugging:
-- Thread registration/unregistration
-- QC processing results
-- Error messages and warnings
-- Auto-expiration notifications
+## 🎛️ Discord Commands
 
-## Contributing
+### **Timer Management**
+- `/timer_status` - View automation status and statistics
+- Permission: QC role or bot owner
 
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
+### **Backend API Functions**
+Available in Python scripts:
+```python
+from backend import (
+    assign_all_to_project,           # Assign everything needed
+    auto_assign_unconnected_projects, # Scan and assign all
+    get_assignment_recommendations,   # Get suggestions
+    assign_writer_to_project,        # Assign specific roles
+    assign_design_controller_to_project
+)
 
-## License
+# Example usage
+results = assign_all_to_project("000001")
+summary = auto_assign_unconnected_projects()
+```
 
-MIT LICENSE
-Software is provided AS IS.
+## 🔧 Development
+
+### **Testing the Backend**
+```bash
+python backend/test.py
+```
+
+### **Adding New Features**
+1. **Models**: Add data structures in `backend/models.py`
+2. **Logic**: Implement algorithms in `backend/assignment.py`
+3. **API**: Expose functions in `backend/sheets_api.py`
+4. **Bot**: Add Discord commands in `bot/bot.py`
+
+### **Timer Customization**
+Edit intervals in `bot/timers.py`:
+```python
+@tasks.loop(minutes=5)   # Auto-assignment frequency
+@tasks.loop(minutes=15)  # Spreadsheet updates
+```
+
+## 📊 Statistics & Monitoring
+
+The system tracks:
+- **Assignment Success Rate**: Projects successfully assigned
+- **Timer Performance**: Runs, assignments made, errors
+- **Resource Utilization**: Workload distribution across team
+- **Processing Time**: How quickly projects get assigned
+
+View stats with `/timer_status` in Discord.
+
+## 🛡️ Safety Features
+
+- **No Double Assignment**: Won't reassign existing assignments
+- **Error Handling**: Continues processing even if one project fails
+- **Permission Controls**: Role-based access to sensitive commands
+- **Detailed Logging**: Comprehensive logs for debugging
+- **Graceful Recovery**: Automatic retry and error reporting
+
+## 🚨 Troubleshooting
+
+### **Common Issues:**
+1. **Import Errors**: Run from project root directory
+2. **Sheet Access**: Check Google credentials and permissions
+3. **Bot Offline**: Verify Discord token and internet connection
+4. **No Assignments**: Check `READY_TO_ASSIGN` and `PROJECT_CONNECTED` columns
+
+### **Logs Location:**
+- Console output shows real-time status
+- Check Discord notifications for assignment reports
+- Use `/timer_status` for current system health
+
+## 🎉 Benefits
+
+✅ **Fully Automated**: No manual assignment needed  
+✅ **Smart Matching**: Optimal resource allocation  
+✅ **Real-time**: Processes new projects within 5 minutes  
+✅ **Scalable**: Handles unlimited projects and team members  
+✅ **Transparent**: Full visibility into assignments and performance  
+✅ **Reliable**: Built-in error handling and recovery  
+
+## 📄 License
+
+MIT License - Software provided AS IS.
+
+---
+
+🚀 **Your project workflow is now fully automated!** Just keep the bot running and it will handle all new project assignments automatically.

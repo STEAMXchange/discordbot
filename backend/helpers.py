@@ -23,6 +23,75 @@ def column_to_number(column: str) -> int:
     return result
 
 
+def get_sheet_column_groups():
+    """
+    Get the column groups for names, discord usernames, and emails.
+    Pattern: Names in A, E, I, M; Discord usernames in B, F, J, N; Emails in C, G, K, O
+    """
+    name_columns = ['A', 'E', 'I', 'M']  # Columns 0, 4, 8, 12
+    
+    column_groups = []
+    for name_col in name_columns:
+        name_idx = ord(name_col) - ord('A')
+        discord_idx = name_idx + 1
+        email_idx = name_idx + 2
+        
+        column_groups.append({
+            'name_col': name_col,
+            'name_idx': name_idx,
+            'discord_idx': discord_idx,
+            'email_idx': email_idx
+        })
+    
+    return column_groups
+
+
+def get_discord_username_from_name(person_name: str, role_type: str, sheet) -> str | None:
+    """
+    Get Discord username from person name using the sheet data.
+    
+    Args:
+        person_name: The person's name to search for
+        role_type: The role type (for logging purposes)
+        sheet: The gspread worksheet to search in
+        
+    Returns:
+        Discord username if found, None otherwise
+    """
+    try:
+        # Get all values from the sheet
+        all_values = sheet.get_all_values()
+        if len(all_values) <= 1:  # No data rows
+            return None
+            
+        # Get column groups (A/B/C, E/F/G, I/J/K, M/N/O)
+        column_groups = get_sheet_column_groups()
+        
+        # Skip header row and search for the person
+        for row in all_values[1:]:
+            if len(row) == 0:
+                continue
+                
+            # Check each column group for the person's name
+            for group in column_groups:
+                name_idx = group['name_idx']
+                discord_idx = group['discord_idx']
+                
+                # Make sure the row has enough columns
+                if len(row) > max(name_idx, discord_idx):
+                    sheet_name = row[name_idx].strip() if name_idx < len(row) else ""
+                    discord_username = row[discord_idx].strip() if discord_idx < len(row) else ""
+                    
+                    if sheet_name and sheet_name.lower() == person_name.lower() and discord_username:
+                        return discord_username
+                        
+        return None
+        
+    except Exception as e:
+        print(f"❌ Error getting Discord username for {person_name}: {e}")
+        return None
+
+
 def formatPID(pid: Union[str, int]) -> str:
     """
     Formats your PID so it can work with other functions.
